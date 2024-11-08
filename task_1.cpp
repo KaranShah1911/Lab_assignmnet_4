@@ -1,200 +1,210 @@
 #include <bits/stdc++.h>
+
 using namespace std;
 
-// Structure to represent an item
-struct Item {
-    int weight;
-    int value;
-    int shelf_life;
-
-    // Constructor to initialize an item
-    Item(int w, int v, int l) : weight(w), value(v), shelf_life(l) {}
-
-    // Function to calculate value-to-weight ratio
-    double valuePerWeight() const {
-        return (double)value / weight;
+// Brute force method to count inversions
+int countInversionsBruteForce(const vector<int>& course_codes) {
+    int inversions = 0;
+    int n = course_codes.size();
+    
+    for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            if (course_codes[i] > course_codes[j]) {
+                inversions++;
+            }
+        }
     }
-};
-
-// Comparison function to sort items based on shelf life first and then by value-to-weight ratio
-bool compare(const Item &a, const Item &b) {
-    if (a.shelf_life != b.shelf_life)
-        return a.shelf_life < b.shelf_life;  // Sort by ascending shelf life
-    return a.valuePerWeight() > b.valuePerWeight();  // If same shelf life, sort by value/weight ratio
+    
+    return inversions;
 }
 
-// Function to validate the input items and capacity
-string isValidInput(const vector<Item> &items, int capacity) {
-    if (capacity < 0) {
-        return "Capacity cannot be negative.";
-    }
+// Merge function used in merge sort to count inversions
+int mergeAndCount(vector<int>& arr, vector<int>& temp, int left, int mid, int right) {
+    int i = left;  // Starting index for left subarray
+    int j = mid + 1;  // Starting index for right subarray
+    int k = left;  // Starting index to be sorted
+    int inv_count = 0;
 
-    bool allZeroValues = true;
-    for (const auto &item : items) {
-        if (item.weight <= 0) {
-            return "Item weight cannot be zero or negative.";
+    while (i <= mid && j <= right) {
+        if (arr[i] <= arr[j]) {
+            temp[k++] = arr[i++];
         }
-        if (item.value < 0) {
-            return "Item value cannot be negative.";
-        }
-        if (item.shelf_life < 0) {
-            return "Item shelf life cannot be negative.";
-        }
-        if (item.value > 0) {
-            allZeroValues = false;
+        else {
+            temp[k++] = arr[j++];
+            inv_count += (mid - i + 1);  // Increment inversion count
         }
     }
 
-    if (allZeroValues) {
-        return "All item values are zero.";
-    }
+    while (i <= mid)
+        temp[k++] = arr[i++];
 
-    return "Valid";  // If all conditions pass
+    while (j <= right)
+        temp[k++] = arr[j++];
+
+    for (i = left; i <= right; i++)
+        arr[i] = temp[i];
+
+    return inv_count;
 }
 
-// Function to calculate the maximum value of items that can be carried using the greedy fractional knapsack approach
-double fractionalKnapsackGreedy(vector<Item> &items, int capacity) {
-    // Sort the items based on shelf life and value-to-weight ratio
-    sort(items.begin(), items.end(), compare);
+// Divide and Conquer approach (Merge Sort) to count inversions
+int mergeSortAndCount(vector<int>& arr, vector<int>& temp, int left, int right) {
+    int mid, inv_count = 0;
+    if (right > left) {
+        mid = (right + left) / 2;
 
-    double total_value = 0.0;  // Variable to store the maximum value
+        inv_count += mergeSortAndCount(arr, temp, left, mid);
+        inv_count += mergeSortAndCount(arr, temp, mid + 1, right);
 
-    for (const auto &item : items) {
-        if (capacity - item.weight >= 0) {
-            // If we can fit the whole item
-            capacity -= item.weight;
-            total_value += item.value;
-        } else {
-            // If we can only take a fraction of the item
-            total_value += item.valuePerWeight() * capacity;
-            break;  // Knapsack is full
+        inv_count += mergeAndCount(arr, temp, left, mid, right);
+    }
+    return inv_count;
+}
+
+// Function to use divide and conquer to count inversions
+int countInversionsOptimized(vector<int> course_codes) {
+    vector<int> temp(course_codes.size());
+    return mergeSortAndCount(course_codes, temp, 0, course_codes.size() - 1);
+}
+
+// Function to check if a course code is valid (positive integer)
+bool isValidCourseCode(const string& code) {
+    if (code.empty()) return false;
+    // Ensure the course code is numeric and not negative
+    for (char c : code) {
+        if (!isdigit(c)) return false;
+    }
+    return true;
+}
+
+// Function to read the CSV file and parse student course choices
+vector<vector<string>> readCSV(const string& filename) {
+    vector<vector<string>> students;
+    ifstream file(filename);
+    string line;
+    
+    if (!file.is_open()) {
+        cerr << "Error: Unable to open the file " << filename << endl;
+        return students;
+    }
+    
+    // Skip the header
+    getline(file, line);
+    
+    // Read each student's data
+    int line_number = 2; // Start after the header
+    
+    while (getline(file, line)) {
+        stringstream ss(line);
+        vector<string> course_codes;
+        string value;
+        
+        // Skip the first column (student ID)
+        getline(ss, value, ',');
+
+        if (value.empty()) {
+            cout << "Error: Missing student ID at line " << line_number << ". Skipping this student's entry." << endl;
+            line_number++;
+            continue;
         }
+        
+        bool is_valid = true;
+        
+        // Read the course codes
+        while (getline(ss, value, ',')) {
+            // Trim leading/trailing spaces
+            value.erase(0, value.find_first_not_of(" \t"));
+            value.erase(value.find_last_not_of(" \t") + 1);
+
+            course_codes.push_back(value);
+        }
+        
+        if (course_codes.size() != 5) {  // Each student should have exactly 5 course codes
+            cout << "Error: Inconsistent number of course codes at line " << line_number << ". Expected 5, but got " << course_codes.size() << ". Skipping this student's entry." << endl;
+            is_valid = false;
+        }
+        
+        if (is_valid) {
+            students.push_back(course_codes);
+        }
+        
+        line_number++;
     }
-    return total_value;
+    
+    file.close();
+    return students;
 }
 
-// Function to run a test case
-void runTestCase(vector<Item> &items, int capacity) {
-    string validation_message = isValidInput(items, capacity);
-    if (validation_message != "Valid") {
-        cout << "Invalid input: " << validation_message << endl;
-        return;
-    }
-
-    // Calculate the maximum value using the greedy fractional knapsack approach
-    double max_value_greedy = fractionalKnapsackGreedy(items, capacity);
-    cout << "Maximum value in Knapsack = " << max_value_greedy << endl;
-}
-
-// Main function to test all cases
 int main() {
-    // -------------------- Negative Test Cases --------------------
+    // File path for the CSV file
+    string file_path = "student_course_choices.csv";
+    
+    // Read the CSV file and load student course choices
+    vector<vector<string>> students = readCSV(file_path);
+    
+    if (students.empty()) {
+        cout << "No valid student course data available for processing." << endl;
+        return 1;
+    }
 
-    // Test case 1: All values are 0
-    vector<Item> items1 = {
-        Item(10, 0, 1), 
-        Item(20, 0, 2),
-        Item(30, 0, 3)
-    };
-    int capacity1 = 40;
-    cout << "Test Case 1:" << endl;
-    runTestCase(items1, capacity1);
+    // Map to store the count of students with a certain number of inversions (for both methods)
+    map<int, int> inversion_count_map_brute_force;
+    map<int, int> inversion_count_map_optimized;
+    
+    // Loop over each student and calculate inversions using both methods
+    int student_number = 1;
+    for (const auto& course_codes_str : students) {
+        bool has_invalid_code = false;
+        vector<int> course_codes;
 
-    // Test case 2: One item with negative value
-    vector<Item> items2 = {
-        Item(5, 50, 1),
-        Item(10, -40, 2),  // Negative value
-        Item(25, 80, 3)
-    };
-    int capacity2 = 30;
-    cout << "\nTest Case 2:" << endl;
-    runTestCase(items2, capacity2);
+        cout << "Student " << student_number << ": ";
 
-    // Test case 3: One item with negative shelf life
-    vector<Item> items3 = {
-        Item(8, 50, -2),   // Negative shelf life
-        Item(12, 100, 1),
-        Item(7, 80, 3)
-    };
-    int capacity3 = 20;
-    cout << "\nTest Case 3:" << endl;
-    runTestCase(items3, capacity3);
+        for (const string& code_str : course_codes_str) {
+            if (!isValidCourseCode(code_str)) {
+                cout << "Non-numeric or invalid course code '" << code_str << "' found. Skipping inversion calculation." << endl;
+                has_invalid_code = true;
+                break;
+            }
 
-    // Test case 4: All items with weight 0
-    vector<Item> items4 = {
-        Item(0, 70, 1),    // Weight 0
-        Item(0, 60, 2),    // Weight 0
-        Item(0, 80, 3)     // Weight 0
-    };
-    int capacity4 = 15;
-    cout << "\nTest Case 4:" << endl;
-    runTestCase(items4, capacity4);
+            int code = stoi(code_str);
+            if (code < 0) {
+                cout << "Negative course code " << code << " found. Skipping inversion calculation." << endl;
+                has_invalid_code = true;
+                break;
+            }
 
-    // Test case 5: Non-numeric weight simulation (handled externally)
-    cout << "\nTest Case 5 (Non-numeric weight simulation):" << endl;
-    cout << "Invalid input: Non-numeric weights are not allowed." << endl;
+            course_codes.push_back(code);
+        }
 
-    // -------------------- Positive Test Cases --------------------
+        if (!has_invalid_code) {
+            int inversions_brute_force = countInversionsBruteForce(course_codes);
+            int inversions_optimized = countInversionsOptimized(course_codes);
 
-    // Test case 6: Knapsack can exactly fit a few items
-    vector<Item> items6 = {
-        Item(10, 60, 1), 
-        Item(20, 100, 2),
-        Item(30, 120, 3),
-        Item(5, 80, 1),
-        Item(15, 90, 2)
-    };
-    int capacity6 = 40;
-    cout << "\nTest Case 6:" << endl;
-    runTestCase(items6, capacity6);
+            // Print the inversion counts for each student (both methods)
+            cout << "Brute-force inversions = " << inversions_brute_force
+                 << ", Optimized inversions = " << inversions_optimized << endl;
 
-    // Test case 7: Small capacity, can't take many items
-    vector<Item> items7 = {
-        Item(5, 50, 1),
-        Item(10, 40, 2),
-        Item(25, 80, 3),
-        Item(15, 90, 1),
-        Item(20, 60, 2)
-    };
-    int capacity7 = 30;
-    cout << "\nTest Case 7:" << endl;
-    runTestCase(items7, capacity7);
+            // Count inversions for brute-force method
+            inversion_count_map_brute_force[inversions_brute_force]++;
+            
+            // Count inversions for optimized method
+            inversion_count_map_optimized[inversions_optimized]++;
+        }
+        
+        student_number++;
+    }
+    
+    // Output the inversion count summary (brute force)
+    cout << "\nSummary of Inversion Counts (Brute Force):" << endl;
+    for (const auto& pair : inversion_count_map_brute_force) {
+        cout << pair.first << " inversions: " << pair.second << " students" << endl;
+    }
 
-    // Test case 8: Exact fit for capacity
-    vector<Item> items8 = {
-        Item(8, 50, 2),
-        Item(12, 100, 1),
-        Item(7, 80, 3),
-        Item(25, 90, 1),
-        Item(10, 70, 2)
-    };
-    int capacity8 = 20;
-    cout << "\nTest Case 8:" << endl;
-    runTestCase(items8, capacity8);
-
-    // Test case 9: Higher shelf life sorting matters
-    vector<Item> items9 = {
-        Item(6, 70, 1),
-        Item(14, 60, 3),
-        Item(12, 80, 2),
-        Item(4, 40, 1),
-        Item(9, 90, 2)
-    };
-    int capacity9 = 15;
-    cout << "\nTest Case 9:" << endl;
-    runTestCase(items9, capacity9);
-
-    // Test case 10: Low capacity test
-    vector<Item> items10 = {
-        Item(3, 40, 1),
-        Item(9, 30, 2),
-        Item(5, 70, 3),
-        Item(10, 60, 2),
-        Item(6, 80, 1)
-    };
-    int capacity10 = 12;
-    cout << "\nTest Case 10:" << endl;
-    runTestCase(items10, capacity10);
+    // Output the inversion count summary (optimized approach)
+    cout << "\nSummary of Inversion Counts (Optimized Divide-and-Conquer):" << endl;
+    for (const auto& pair : inversion_count_map_optimized) {
+        cout << pair.first << " inversions: " << pair.second << " students" << endl;
+    }
 
     return 0;
 }
